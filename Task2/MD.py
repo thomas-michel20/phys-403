@@ -13,7 +13,6 @@ ensembles.
 import copy
 from numba import jit
 from numba import prange
-import matplotlib.pyplot as plt
 import numpy as np
 __author__  = "Alexey Tal"
 __contact__ = "alexey.a.tal@gmail.com"
@@ -143,7 +142,7 @@ def calculateForces(pos, L, N, Nbins, r_cutoff):
 
                 Forces_y[ii] += Fy
                 Forces_y[jj] -= Fy
-    
+
                 Forces_z[ii] += Fz
                 Forces_z[jj] -= Fz
 
@@ -250,7 +249,7 @@ def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff
 
 # --------------------Verlet list--------------------
 
-# Verlet list has a list of particle pair closer than (r_cut+r_skin) 
+# Verlet list has a list of particle pair closer than (r_cut+r_skin)
 # Forces caculation are only done on particle in the list
 # The list has to be updated when particles moves too much,
 # Forces are actually computed when there distance is smaller than r_cut
@@ -258,7 +257,7 @@ def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff
 # In this case they start interacting when they moves by r_skin
 # As soon as a particle moves by more than r_skin/2 they might interact
 # If they both move by less than r_skin/2 they will not interact
-# So a sufficent condition for updating the list is 
+# So a sufficent condition for updating the list is
 # If any particle moves by more than r_skin/2
 # The region between r_cut and r_cut+r_skin act as a buffer zone.
 
@@ -709,7 +708,7 @@ def calculate_sofk_direct(pos,N,L,kvec,iqshell,nkshell,sofk):
 
     for ii in range(nktot):
         iq = iqshell[ii]
-        sofk[iq] +=sofk_full[ii]  
+        sofk[iq] +=sofk_full[ii]
 
 
 
