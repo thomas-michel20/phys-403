@@ -181,7 +181,7 @@ def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff
     sofk_direct = generate_kgrid(L, N, Nbins)
 
     # Output
-    print("#{:^5}{:^13}{:^13}".format('Step', 'Pontetial', 'Kinetic'))
+    print("#{:^5}{:^13}{:^13}".format('Step','Kinetic', 'Potential'))
     print("#{:-^5}{:-^13}{:-^13}".format('', '', ''))
 
     # Time evolution
@@ -387,7 +387,7 @@ def run_list_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_c
     shift_up = np.zeros_like(pos)
 
     # Output
-    print("#{:^5}{:^13}{:^13}".format('Step', 'Pontetial', 'Kinetic'))
+    print("#{:^5}{:^13}{:^13}".format('Step',  'Kinetic', 'Potential'))
     print("#{:-^5}{:-^13}{:-^13}".format('', '', ''))
 
     # Time evolution
@@ -489,7 +489,7 @@ def run_NVT(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=0.78, Q=10, xi=0, lns=0, 
 
     # Output
     print("#{:^5}{:^13}{:^13}{:^13}".format(
-        'Step', 'Pontetial', 'Kinetic', 'Total NH'))
+        'Step', 'Kinetic', 'Potential', 'Total NH'))
     print("#{:-^5}{:-^13}{:-^13}{:-^13}".format('', '', '', ''))
 
     # Time evolution
