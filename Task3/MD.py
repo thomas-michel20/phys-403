@@ -544,7 +544,7 @@ def run_NVT(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=0.78, Q=10, xi=0, lns=0, 
         EnNH[ii] /= N
 
         # Output
-        print("%5.d %5.8f %5.8f %5.8f" % (ii, EnKin[ii], EnPot[ii], EnNH[ii]))
+        print("%5.d %5.8f %5.8f %5.8f" % (ii, EnKin[ii], EnPot[ii], EnNH[ii]),end='\r')
 
     # Compute the average g(r) nd s(k)
     gofr = calculate_gofr(gofr, L, N, Nbins)
