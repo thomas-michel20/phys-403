@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "simple-md"
+dynamic = ["version"]  # read from src/simple_md/__init__.py
+description = "Simple Molecular Dynamics"
+authors = [{name = "Austin Zadoks", email = "austin.zadoks@protonmail.com"}]
+readme = "README.md"
+license = {file = "LICENSE.txt"}
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "numba",
+]
+
+[project.optional-dependencies]
+pre-commit = [
+    'pre-commit',
+    'yapf',
+    'toml',
+]
+
+[tool.isort]
+force_sort_within_sections = true
+include_trailing_comma = true
+line_length = 120
+multi_line_output = 3
+
+[tool.yapf]
+align_closing_bracket_with_visual_indent = true
+based_on_style = 'google'
+coalesce_brackets = true
+column_limit = 120
+dedent_closing_brackets = true
+indent_dictionary_value = false
+split_arguments_when_comma_terminated = true
+
+[tool.pylint.format]
+max-line-length = 120
+extension-pkg-allow-list = ['sorep.occupation.smearing', 'sorep.dos.gaussian_dos']
