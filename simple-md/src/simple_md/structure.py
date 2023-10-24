@@ -16,12 +16,13 @@ def build_fcc(n_cells: int, lattice_parameter: float) -> ty.Tuple[np.ndarray, fl
         np.ndarray: (n_atoms x 3) array of atomic positions.
         float: Box length.
     """
+    # Fractional coordinates of atoms in a conventional FCC cell.
     frac_coords = np.array([[0.0, 0.0, 0.0], [0.5, 0.5, 0.0], [0.5, 0.0, 0.5], [0.5, 0.5, 0.5]])
     # N_atoms = 4 * N_cells**3
     n_atoms = frac_coords.shape[0] * n_cells**3
     # L = a * N_cells
     box_parameter = lattice_parameter * n_cells
-    # Make an empty array for the positions of all the atoms
+    # Make an empty array for the positions of all the atoms.
     pos = np.empty((n_atoms, 3))
     # Compute the x (also y and z, because the system is cubic) position of the origin
     # of each unit cell within the supercell.
@@ -31,8 +32,9 @@ def build_fcc(n_cells: int, lattice_parameter: float) -> ty.Tuple[np.ndarray, fl
     cell_origins = np.meshgrid(x_lin, x_lin, x_lin)
     # Reshape the data into a list of (x, y, z) coordinates.
     cell_origins = np.hstack([np.reshape(cell_origins[i], (n_cells**3, 1)) for i in range(3)])
-    # Generate the atomic positions.
+    # Generate the atomic positions by shifting the coordinates in the origin cell by
+    # the vector pointing to the origin of the cell of interest in the supercell.
     for (i, frac_coord) in enumerate(frac_coords):
         pos[i * n_cells**3:(i + 1) * n_cells**3] = cell_origins + lattice_parameter * frac_coord
-    # Return the size of the supercell box as well as all the positions.
+    # Return the positions and the edge length of the supercell box.
     return pos, box_parameter

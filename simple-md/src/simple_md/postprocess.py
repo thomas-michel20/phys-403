@@ -2,15 +2,17 @@
 """Postprocessing utilities."""
 import typing as ty
 
-from numba import float64, int64, jit
+from numba import float64, int64, jit, prange
 import numpy as np
 
 from .system import System
 
 
 @jit(nopython=True)
-def compute_msd(system: 'System', init_system: 'System') -> float:
+def compute_msd(system: System, init_system: System) -> float:
     """Compute the mean squared displacement between two systems.
+
+    MSD(t) = <(r_i(t) - r_i(t=0)^2>
 
     Args:
         system (System): System at some time t.
@@ -25,8 +27,10 @@ def compute_msd(system: 'System', init_system: 'System') -> float:
 
 
 @jit(nopython=True)
-def compute_vacf(system: 'System', init_system: 'System') -> float:
+def compute_vacf(system: System, init_system: System) -> float:
     """Compute the unnormalized velocity autocorrelation function between two systems.
+
+    VACF(t) = 1/3 <v(t) . v(t=0)>
 
     Args:
         system (System): System at some time t.
@@ -35,10 +39,10 @@ def compute_vacf(system: 'System', init_system: 'System') -> float:
     Returns:
         float: Unnormalized velocity autocorrelation function.
     """
-    return np.mean(np.sum(system.velocities * init_system.velocities, axis=1) / 3)
+    return np.mean(np.sum(system.velocities * init_system.velocities, axis=1)) / 3
 
 
-def compute_rdf(traj: ty.Sequence['System'], n_bins: int = 300):
+def compute_rdf(traj: ty.Sequence[System], n_bins: int = 300):
     """Compute the radial distribution function for a MD trajectory.
 
     Args:
@@ -49,39 +53,26 @@ def compute_rdf(traj: ty.Sequence['System'], n_bins: int = 300):
         ty.Tuple[np.ndarray, np.ndarray]: (n_bins,) vectors r (bin-centers) and g(r)
             (radial distribution function).
     """
-    rdfs = np.zeros((len(traj), n_bins))
-    for (i, sys) in enumerate(traj):
-        rdfs[i, :] = sys.radial_distribution(n_bins)
-
     box_parameter = traj[0].box_parameter
     n_atoms = traj[0].n_atoms
     volume = traj[0].volume
 
-    # Number of entries in the upper triangle of the distance matrix
-    n_dists = n_atoms * (n_atoms - 1)
+    n_dists = n_atoms * (n_atoms - 1) / 2
     box_radius = box_parameter / 2
     bin_width = box_radius / n_bins
 
-    return _compute_rdf(rdfs, volume, bin_width, n_dists, n_bins)
+    rdf_sum = np.zeros(n_bins)
+    for sys in traj:
+        rdf_sum += sys.radial_distribution(n_bins)
+    rdf_mean = rdf_sum / len(traj)
 
-
-@jit((float64[:, :], float64, float64, int64, int64), nopython=True, parallel=True)
-def _compute_rdf(rdfs: np.ndarray, volume: float, bin_width: float, n_dists: int, n_bins: int) -> np.ndarray:
-    g = np.zeros(n_bins)
-    r = np.zeros(n_bins)
-    pre_factor = 2 * volume / n_dists / (4 * np.pi * bin_width)
-    for i in range(n_bins):
-        r[i] = bin_width * (i + 0.5)
-        g[i] = pre_factor * np.mean(rdfs[:, i]) / r[i]**2
+    r = bin_width * (np.arange(n_bins) + 0.5)
+    g = volume / (n_dists * 4 * np.pi * bin_width) * rdf_mean / r**2
 
     return r, g
 
 
-def compute_sf(r: np.ndarray,
-               g: np.ndarray,
-               density: float,
-               n_q: int = 300,
-               q_max: float = 32.0) -> ty.Tuple[np.ndarray, np.ndarray]:
+def compute_sf(r: np.ndarray, g: np.ndarray, density: float, n_q: int = 300, q_max: float = 32.0):
     """Compute the structure factor for an MD trajectory by Fourier transforming its
     radial distribution function.
 
@@ -100,34 +91,27 @@ def compute_sf(r: np.ndarray,
 
 
 @jit((float64[:], float64[:], float64, int64, float64), nopython=True, parallel=True)
-def _compute_sf(r: np.ndarray,
-                g: np.ndarray,
-                density: float,
-                n_q: int = 300,
-                q_max: float = 32.0) -> ty.Tuple[np.ndarray, np.ndarray]:
-    n_r = r.shape[0]
+def _compute_sf(r: np.ndarray, g: np.ndarray, density: float, n_q: int, q_max: float):
+    # Compute dr for use in the trapezoidal integration `np.trapz`.
     dr = r[1] - r[0]
-    integrand = np.zeros_like(r)
-
+    # r^2 (g - 1) is constant in the loop below, so we calculate it only once.
+    r2_gm1 = r * r * (g - 1)
+    # Define the domain of the structure factor.
     q = np.linspace(start=0.0, stop=q_max, num=n_q)
+    # Create an array of zeros to fill with the structure factor.
     structure_factor = np.zeros(n_q)
-
-    for i_q in range(n_q):
-        for i_r in range(n_r):
-            qr = q[i_q] * r[i_r]
-
-            if qr < 1e-8:  # Small-sine
-                integrand[i_r] = r[i_r]**2 * (g[i_r] - 1) * (1 - qr**2 / 6 * (1 - qr**2 / 20 * (1 - qr**2 / 42)))
-            else:
-                integrand[i_r] = r[i_r] * (g[i_r] - 1) * np.sin(qr) / q[i_q]
-
-            structure_factor[i_q] = 1 + 4 * np.pi * density * np.trapz(y=integrand, dx=dr)
-
+    # Compute the integral expression for each value of `q`.
+    for i_q in prange(n_q):  # pylint: disable=not-an-iterable
+        # Integrand = r^2 (g - 1) sin(q r) / (q r)
+        #           = r^2 (g - 1) sinc((q r) / pi), where
+        # sinc(x) = sin(pi x) / (pi x)
+        integrand = r2_gm1 * np.sinc(q[i_q] / np.pi * r)
+        structure_factor[i_q] = 1 + 4 * np.pi * density * np.trapz(y=integrand, dx=dr)
     return q, structure_factor
 
 
 def compute_velocity_component_density(
-    system: 'System', v_min: float = -10.0, v_max: float = +10.0, n_bins: int = 300
+    system: System, v_min: float = -10.0, v_max: float = +10.0, n_bins: int = 300
 ) -> np.ndarray:
     """Compute a histogram of velocity components from `v_min` to `v_max` over `n_bins`
     bins.
@@ -145,9 +129,7 @@ def compute_velocity_component_density(
     return density
 
 
-def compute_velocity_magnitude_density(
-    system: 'System', v_magnitude_max: float = 10.0, n_bins: int = 300
-) -> np.ndarray:
+def compute_velocity_magnitude_density(system: System, v_magnitude_max: float = 10.0, n_bins: int = 300) -> np.ndarray:
     """Compute a histogram of velocity magnitudes up to `v_magnitude_max` over `n_bins`
     bins.
 
