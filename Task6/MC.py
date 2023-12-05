@@ -94,7 +94,7 @@ def energy(pos, r2cut, eps, sig, npart, box, rho, vol, beta):
         if dis2 <=  r2cut :
           r6i=(sig**2/dis2)**3
           etot += 4*eps*(r6i**2-r6i)
-          vir += 48*eps*(r6i**2-0.5*r6i)
+          vir += 24*eps*(2*r6i**2-r6i)
 
   press = rho/beta + vir/(3*vol)
   return etot,press
@@ -228,6 +228,7 @@ def cor_pr(rcut,rho, sig, eps):
     sig3=sig**3
     ri3=sig3*1.0/(rcut**3)
     corp = 4*np.pi*eps*4*(rho**2)*sig3*(2*ri3*ri3*ri3/9-ri3/3)
+    # 16/3 pi eps rho^2 sigma^3 (2/3 x^3 - x)
     return corp
 
 # --------------------I/O functions--------------------
