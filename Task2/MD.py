@@ -227,7 +227,7 @@ def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff
         EnPot[ii] /= N
 
         # Output
-        print("%5.d %5.8f %5.8f " % (ii, EnKin[ii], EnPot[ii]))
+        print("%5.d %5.8f %5.8f " % (ii, EnKin[ii], EnPot[ii]), end='\r')
 
     # Compute the average g(r) nd s(k)
     gofr = calculate_gofr(gofr, L, N, Nbins)

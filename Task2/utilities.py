@@ -20,7 +20,7 @@ def plot_velocity(
     ax.legend()
     if plot_filename:
         fig.savefig(plot_filename)
-    return fig
+    #return fig
 
 def plot_data(
     results: npt.ArrayLike,
@@ -41,7 +41,7 @@ def plot_data(
     ax.legend()
     if plot_filename:
         fig.savefig(plot_filename)
-    return fig
+    #return fig
 
 def plot_data2(
     results: npt.ArrayLike,
@@ -63,4 +63,4 @@ def plot_data2(
     ax.legend()
     if plot_filename:
         fig.savefig(plot_filename)
-    return fig
+    #return fig
