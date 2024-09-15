@@ -159,8 +159,10 @@ def calculateForces(pos, L, N, Nbins, r_cutoff):
     return forces, EnPot, gofr
 
 
-def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff=2.5, direct_sofk=False):
-
+def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff=2.5, direct_sofk=False, qspacing=1):
+    """
+    qspacing control the qvec spacing for direct sofk
+    """
     # Copy by value
     pos = copy.copy(pos_in)
     vel = copy.copy(vel_in)
@@ -178,7 +180,7 @@ def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff
     shift = np.zeros_like(pos)
 
     # Initialize the k grid
-    sofk_direct = generate_kgrid(L, N, Nbins)
+    sofk_direct = generate_kgrid(L, N, Nbins, qspacing=qspacing)
 
     # Output
     print("#{:^5}{:^13}{:^13}".format('Step','Kinetic', 'Potential'))
@@ -608,7 +610,7 @@ def calculate_sofk_FT(gofr, L, N, qmax=30, nqvec=300):
     return {'s': sofk, 'k': k}
 
 
-def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300):
+def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300, qspacing=1):
 
   # allocate and initialize k-vectors (N.B., since positions are in L*\sigma units,
   # k vectors here are in 1/(L*\sigma) units, where L is the box size in \sigma units
@@ -618,7 +620,8 @@ def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300):
   kvec = []
   iqshell = np.zeros(nkmax, dtype=int)
   iqshell = []
-  nqvec=min(nqvec,int(qmax/(2*np.pi/L)))
+  # double the spacing
+  nqvec=min(nqvec,int(qmax/(qspacing*2*np.pi/L)))
   nkshell = np.zeros(nqvec)
 
   # initialize q grid (q are in 1/\sigma units)
@@ -628,9 +631,9 @@ def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300):
      qvec[ii] = dqvec * (ii + 0.5)
 
   # regular uniform grid of k-points
-  dk1 = 1
-  dk2 = 1
-  dk3 = 1
+  dk1 = qspacing
+  dk2 = qspacing
+  dk3 = qspacing
 
   ii = 0
   nn = 1
