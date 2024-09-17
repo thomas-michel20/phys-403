@@ -694,7 +694,7 @@ def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300, qspacing=1, reduced_sofk
     # if the number of kvec in the shell is larger than num_sampled, we sample num_sampled kvec
     num_sampled = 100
     #boundary_iq_red = int((nk1*2*np.pi/L) / qmax * nqvec)
-    boundary_iq_red = int(15.0 / qmax * nqvec)
+    boundary_iq_red = int(10.0 / qmax * nqvec)
 
     new_kvec = np.array([], dtype=int).reshape(0,3)
     new_iqshell = np.array([], dtype=int)
