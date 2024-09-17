@@ -13,7 +13,9 @@ ensembles.
 import copy
 from numba import jit
 from numba import prange
+import matplotlib.pyplot as plt
 import numpy as np
+from random import sample
 __author__  = "Alexey Tal"
 __contact__ = "alexey.a.tal@gmail.com"
 __license__ = "GPLv3"
@@ -446,7 +448,7 @@ def run_list_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_c
               pos, N, L, sofk_direct['kvec'], sofk_direct['iqshell'], sofk_direct['nkshell'], sofk_direct['sofk'])
 
         # Output
-        print("%5.d %5.8f %5.8f " % (ii, EnKin[ii], EnPot[ii]))
+        print("%5.d %5.8f %5.8f " % (ii, EnKin[ii], EnPot[ii]), end='\r')
 
     # Pair inside cutoff
     gofr = calculate_gofr(gofr, L, N, Nbins)
@@ -545,7 +547,7 @@ def run_NVT(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=0.78, Q=10, xi=0, lns=0, 
         EnNH[ii] /= N
 
         # Output
-        print("%5.d %5.8f %5.8f %5.8f" % (ii, EnKin[ii], EnPot[ii], EnNH[ii]))
+        print("%5.d %5.8f %5.8f %5.8f" % (ii, EnKin[ii], EnPot[ii], EnNH[ii]),end='\r')
 
     # Compute the average g(r) nd s(k)
     gofr = calculate_gofr(gofr, L, N, Nbins)
@@ -610,20 +612,19 @@ def calculate_sofk_FT(gofr, L, N, qmax=30, nqvec=300):
     return {'s': sofk, 'k': k}
 
 
-def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300, qspacing=1):
+def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300, qspacing=1, reduced_sofk=True):
 
   # allocate and initialize k-vectors (N.B., since positions are in L*\sigma units,
   # k vectors here are in 1/(L*\sigma) units, where L is the box size in \sigma units
   qmax = 32
   nkmax = 300000
+  # nk1 nk2 nk3 partition the k-space in shells of increasing size
   nk1 = 30; nk2 = 30; nk3 = 30
   kvec = []
   iqshell = np.zeros(nkmax, dtype=int)
   iqshell = []
-  # double the spacing
   nqvec=min(nqvec,int(qmax/(qspacing*2*np.pi/L)))
   nkshell = np.zeros(nqvec)
-
   # initialize q grid (q are in 1/\sigma units)
   qvec = np.zeros(nqvec)
   dqvec = qmax/float(nqvec-1)
@@ -681,8 +682,40 @@ def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300, qspacing=1):
 
     nn = nn + 1
 
+
+
+
   kvec=np.array(kvec)
   iqshell=np.array(iqshell)
+
+  # further reduce the number of kvec
+  if reduced_sofk:
+    # we consider to reduce the number of kvec in a shell that is larger than boundary_iq_red
+    # if the number of kvec in the shell is larger than num_sampled, we sample num_sampled kvec
+    num_sampled = 100
+    #boundary_iq_red = int((nk1*2*np.pi/L) / qmax * nqvec)
+    boundary_iq_red = int(15.0 / qmax * nqvec)
+
+    new_kvec = np.array([], dtype=int).reshape(0,3)
+    new_iqshell = np.array([], dtype=int)
+    for ii in range(nqvec):
+      # check the number of kvec in each shell
+      kvec_in_shell =  kvec[iqshell ==  ii]
+      num_kvec_in_shell = len(kvec_in_shell)
+      if ii < boundary_iq_red or num_kvec_in_shell <= num_sampled:
+        # if the number of kvec in the shell is smaller than num_sampled, we keep all kvec
+        new_kvec = np.concatenate((new_kvec, kvec_in_shell))
+        new_iqshell = np.concatenate((new_iqshell, np.full(num_kvec_in_shell,ii)))
+      else:
+        # if the number of kvec in the shell is larger than num_sampled, we randomly sample num_sampled kvec
+        idx_rand_kvec = sample(range(num_kvec_in_shell), num_sampled)
+        new_kvec = np.concatenate((new_kvec, kvec_in_shell[idx_rand_kvec]))
+        new_iqshell = np.concatenate((new_iqshell, np.full(num_sampled,ii)))
+        nkshell[ii] = num_sampled
+
+    # update kvec and iqshell
+    kvec = new_kvec
+    iqshell = new_iqshell
 
   return {'qvec':qvec,'kvec':kvec,'iqshell':iqshell,'nkshell':nkshell,'sofk':np.full(nqvec,1./N)}
 

@@ -15,6 +15,7 @@ from numba import jit
 from numba import prange
 import matplotlib.pyplot as plt
 import numpy as np
+from random import sample
 __author__  = "Alexey Tal"
 __contact__ = "alexey.a.tal@gmail.com"
 __license__ = "GPLv3"
@@ -143,7 +144,7 @@ def calculateForces(pos, L, N, Nbins, r_cutoff):
 
                 Forces_y[ii] += Fy
                 Forces_y[jj] -= Fy
-    
+
                 Forces_z[ii] += Fz
                 Forces_z[jj] -= Fz
 
@@ -160,8 +161,10 @@ def calculateForces(pos, L, N, Nbins, r_cutoff):
     return forces, EnPot, gofr
 
 
-def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff=2.5, direct_sofk=False):
-
+def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff=2.5, direct_sofk=False, qspacing=1):
+    """
+    qspacing control the qvec spacing for direct sofk
+    """
     # Copy by value
     pos = copy.copy(pos_in)
     vel = copy.copy(vel_in)
@@ -179,10 +182,10 @@ def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff
     shift = np.zeros_like(pos)
 
     # Initialize the k grid
-    sofk_direct = generate_kgrid(L, N, Nbins)
+    sofk_direct = generate_kgrid(L, N, Nbins, qspacing=qspacing)
 
     # Output
-    print("#{:^5}{:^13}{:^13}".format('Step', 'Pontetial', 'Kinetic'))
+    print("#{:^5}{:^13}{:^13}".format('Step','Kinetic', 'Potential'))
     print("#{:-^5}{:-^13}{:-^13}".format('', '', ''))
 
     # Time evolution
@@ -228,7 +231,7 @@ def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff
         EnPot[ii] /= N
 
         # Output
-        print("%5.d %5.8f %5.8f " % (ii, EnKin[ii], EnPot[ii]))
+        print("%5.d %5.8f %5.8f " % (ii, EnKin[ii], EnPot[ii]), end='\r')
 
     # Compute the average g(r) nd s(k)
     gofr = calculate_gofr(gofr, L, N, Nbins)
@@ -250,7 +253,7 @@ def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff
 
 # --------------------Verlet list--------------------
 
-# Verlet list has a list of particle pair closer than (r_cut+r_skin) 
+# Verlet list has a list of particle pair closer than (r_cut+r_skin)
 # Forces caculation are only done on particle in the list
 # The list has to be updated when particles moves too much,
 # Forces are actually computed when there distance is smaller than r_cut
@@ -258,7 +261,7 @@ def run_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_cutoff
 # In this case they start interacting when they moves by r_skin
 # As soon as a particle moves by more than r_skin/2 they might interact
 # If they both move by less than r_skin/2 they will not interact
-# So a sufficent condition for updating the list is 
+# So a sufficent condition for updating the list is
 # If any particle moves by more than r_skin/2
 # The region between r_cut and r_cut+r_skin act as a buffer zone.
 
@@ -388,7 +391,7 @@ def run_list_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_c
     shift_up = np.zeros_like(pos)
 
     # Output
-    print("#{:^5}{:^13}{:^13}".format('Step', 'Pontetial', 'Kinetic'))
+    print("#{:^5}{:^13}{:^13}".format('Step',  'Kinetic', 'Potential'))
     print("#{:-^5}{:-^13}{:-^13}".format('', '', ''))
 
     # Time evolution
@@ -445,7 +448,7 @@ def run_list_NVE(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=None, Nbins=300, r_c
               pos, N, L, sofk_direct['kvec'], sofk_direct['iqshell'], sofk_direct['nkshell'], sofk_direct['sofk'])
 
         # Output
-        print("%5.d %5.8f %5.8f " % (ii, EnKin[ii], EnPot[ii]))
+        print("%5.d %5.8f %5.8f " % (ii, EnKin[ii], EnPot[ii]), end='\r')
 
     # Pair inside cutoff
     gofr = calculate_gofr(gofr, L, N, Nbins)
@@ -490,7 +493,7 @@ def run_NVT(pos_in, vel_in, L, nsteps, N, dt=0.0046, T=0.78, Q=10, xi=0, lns=0, 
 
     # Output
     print("#{:^5}{:^13}{:^13}{:^13}".format(
-        'Step', 'Pontetial', 'Kinetic', 'Total NH'))
+        'Step', 'Kinetic', 'Potential', 'Total NH'))
     print("#{:-^5}{:-^13}{:-^13}{:-^13}".format('', '', '', ''))
 
     # Time evolution
@@ -609,19 +612,19 @@ def calculate_sofk_FT(gofr, L, N, qmax=30, nqvec=300):
     return {'s': sofk, 'k': k}
 
 
-def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300):
+def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300, qspacing=1, reduced_sofk=True):
 
   # allocate and initialize k-vectors (N.B., since positions are in L*\sigma units,
   # k vectors here are in 1/(L*\sigma) units, where L is the box size in \sigma units
   qmax = 32
   nkmax = 300000
+  # nk1 nk2 nk3 partition the k-space in shells of increasing size
   nk1 = 30; nk2 = 30; nk3 = 30
   kvec = []
   iqshell = np.zeros(nkmax, dtype=int)
   iqshell = []
-  nqvec=min(nqvec,int(qmax/(2*np.pi/L)))
+  nqvec=min(nqvec,int(qmax/(qspacing*2*np.pi/L)))
   nkshell = np.zeros(nqvec)
-
   # initialize q grid (q are in 1/\sigma units)
   qvec = np.zeros(nqvec)
   dqvec = qmax/float(nqvec-1)
@@ -629,9 +632,9 @@ def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300):
      qvec[ii] = dqvec * (ii + 0.5)
 
   # regular uniform grid of k-points
-  dk1 = 1
-  dk2 = 1
-  dk3 = 1
+  dk1 = qspacing
+  dk2 = qspacing
+  dk3 = qspacing
 
   ii = 0
   nn = 1
@@ -679,8 +682,40 @@ def generate_kgrid(L, N, Nbins=300, qmax=30, nqvec=300):
 
     nn = nn + 1
 
+
+
+
   kvec=np.array(kvec)
   iqshell=np.array(iqshell)
+
+  # further reduce the number of kvec
+  if reduced_sofk:
+    # we consider to reduce the number of kvec in a shell that is larger than boundary_iq_red
+    # if the number of kvec in the shell is larger than num_sampled, we sample num_sampled kvec
+    num_sampled = 100
+    #boundary_iq_red = int((nk1*2*np.pi/L) / qmax * nqvec)
+    boundary_iq_red = int(15.0 / qmax * nqvec)
+
+    new_kvec = np.array([], dtype=int).reshape(0,3)
+    new_iqshell = np.array([], dtype=int)
+    for ii in range(nqvec):
+      # check the number of kvec in each shell
+      kvec_in_shell =  kvec[iqshell ==  ii]
+      num_kvec_in_shell = len(kvec_in_shell)
+      if ii < boundary_iq_red or num_kvec_in_shell <= num_sampled:
+        # if the number of kvec in the shell is smaller than num_sampled, we keep all kvec
+        new_kvec = np.concatenate((new_kvec, kvec_in_shell))
+        new_iqshell = np.concatenate((new_iqshell, np.full(num_kvec_in_shell,ii)))
+      else:
+        # if the number of kvec in the shell is larger than num_sampled, we randomly sample num_sampled kvec
+        idx_rand_kvec = sample(range(num_kvec_in_shell), num_sampled)
+        new_kvec = np.concatenate((new_kvec, kvec_in_shell[idx_rand_kvec]))
+        new_iqshell = np.concatenate((new_iqshell, np.full(num_sampled,ii)))
+        nkshell[ii] = num_sampled
+
+    # update kvec and iqshell
+    kvec = new_kvec
+    iqshell = new_iqshell
 
   return {'qvec':qvec,'kvec':kvec,'iqshell':iqshell,'nkshell':nkshell,'sofk':np.full(nqvec,1./N)}
 
@@ -709,7 +744,7 @@ def calculate_sofk_direct(pos,N,L,kvec,iqshell,nkshell,sofk):
 
     for ii in range(nktot):
         iq = iqshell[ii]
-        sofk[iq] +=sofk_full[ii]  
+        sofk[iq] +=sofk_full[ii]
 
 
 
